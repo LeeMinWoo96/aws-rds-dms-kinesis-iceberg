@@ -15,6 +15,26 @@ S3로 데이터 레이크를 관리하지만, 변경 데이터 처리의 한계�
 - CDC 를 하려면 Binlog가 활성화 되어있어야함 [관련 Docs](https://docs.aws.amazon.com/ko_kr/dms/latest/userguide/CHAP_Source.MySQL.html)   
 2. DMS 를 사용할때 public zone 에 진행되는게 아니고, Severless 솔루션을 쓴다면 VPC endpoint 생성해둬야함 [관련 Docs](https://docs.aws.amazon.com/ko_kr/dms/latest/userguide/CHAP_VPC_Endpoints.html)   
 3. 당연하지만 SecretManager 도 열어둬야함   
+4. kinesis datastream 부터 하나씩 확인 필요 (kinesis 데이터 조회 간 LATEST 말고 TIMESTAMP 로 찍는게 더 남, LASTEST 는 들어오고 있는 실시간 데이터만 보여서 수동으론 보기 어려움)
+
+<h3>kinesis datastream cdc 데이터 포맷 참고</h3>
+
+```json
+{
+	"data":	{
+		"temp" : temp
+	},
+	"metadata":	{
+		"timestamp":	"2024-09-05T05:11:52.893007Z",
+		"record-type":	"data",
+		"operation":	"delete",
+		"partition-key-type":	"schema-table",
+		"schema-name":	"{}",
+		"table-name":	"{}",
+		"transaction-id":	5145370820848
+	}
+}
+```
 
 
 
@@ -26,7 +46,10 @@ S3로 데이터 레이크를 관리하지만, 변경 데이터 처리의 한계�
 
 2. Glue receiving data from kinesis DataStream and missing some columns in schema inference
 - 파악중이나, 스키마 추론 샘플링 비율을 높이면 약간 개선됨 
-```
+
+<h3>샘플링 조절 참고</h3>
+
+```python
 kds_df = glueContext.create_data_frame.from_options(
     connection_type="kinesis",
     connection_options={
@@ -41,11 +64,10 @@ kds_df = glueContext.create_data_frame.from_options(
 )
 
 ```
-- Identify some missing columns within a kinesis shard  
-- DMS CDC 쪽 문제 유력 
+- stream 데이터는 null을 제외하고 갖고오기때문에 일부 컬럼의 누락이 있을 수 있음, temp_view 를 만들때 있는 컬럼만 선택하게 하거나, 누락 컬럼을 추가하는 방식 필요 (*이번 개발 코드에선 두번째 방식 이용*)
 
-
-
+3. Glue version4
+- 몇몇 Spark API 사용 간 호환되지 않는 것들이 발견되어 3.0 버전 사용 
 
 ### 참고자료 
 1. [실시간 CDC 데이터처리! AWS Submmit](https://aws.amazon.com/ko/blogs/tech/cdc-data-pipeline-from-db-to-opensearch-service/)
